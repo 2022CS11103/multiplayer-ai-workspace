@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #12151c;
+  --panel: #1b2029;
+  --panel-2: #232a35;
+  --text: #f3f6fb;
+  --muted: #c5cedb;
+  --dim: #9aa6b8;
+  --line: #343d4d;
+  --accent: #7dd3fc;
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9aa6b8;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3b4454;
+  border-radius: 99px;
+}
+
+.pulse-dot {
+  display: inline-block;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.diff-del {
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.diff-add {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+}
