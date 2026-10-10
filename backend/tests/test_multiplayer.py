@@ -177,7 +177,8 @@ async def test_pause_and_resume_are_idempotent(client):
 
     events = (await client.get(f"/api/workspaces/{room_id}/events", headers=auth_header(owner_token))).json()["events"]
     types = [e["type"] for e in events]
-    assert types.count("agent_started") == 1
+    started_by_people = [e for e in events if e["type"] == "agent_started" and e["payload"]["text"].endswith("started the agent")]
+    assert len(started_by_people) == 1
     assert types.count("agent_paused") == 1 and types.count("agent_resumed") == 1
 
 

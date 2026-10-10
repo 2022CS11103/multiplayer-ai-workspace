@@ -330,8 +330,8 @@ async def pause_agent(
     db: AsyncSession = Depends(get_db),
 ):
     await require_editor(workspace_id, user, db)
-    run = await _latest_run(db, workspace_id)
-    if run is None or run.status not in {AgentStatus.queued, AgentStatus.running, AgentStatus.needs_human_input}:
+    active = {AgentStatus.queued, AgentStatus.running, AgentStatus.needs_human_input}
+    if not await _claim_run_status(db, workspace_id, active, AgentStatus.paused):
         return {"ok": True, "status": "not_running"}
     await _controller().pause(workspace_id)
     try:
@@ -350,8 +350,7 @@ async def resume_agent(
     db: AsyncSession = Depends(get_db),
 ):
     await require_editor(workspace_id, user, db)
-    run = await _latest_run(db, workspace_id)
-    if run is None or run.status != AgentStatus.paused:
+    if not await _claim_run_status(db, workspace_id, {AgentStatus.paused}, AgentStatus.running):
         return {"ok": True, "status": "not_paused"}
     await _controller().resume(workspace_id)
     try:
@@ -1032,12 +1031,20 @@ async def _hand_session(
     )
 
 
-async def _latest_run(db: AsyncSession, workspace_id: UUID) -> AgentRun | None:
-    return (
+async def _claim_run_status(db: AsyncSession, workspace_id: UUID, allowed: set, to: AgentStatus) -> bool:
+    """Move the latest run to `to` only from an `allowed` status, so double clicks emit one event."""
+    run_id = (
         await db.execute(
-            select(AgentRun).where(AgentRun.workspace_id == workspace_id).order_by(AgentRun.created_at.desc()).limit(1)
+            select(AgentRun.id).where(AgentRun.workspace_id == workspace_id).order_by(AgentRun.created_at.desc()).limit(1)
         )
     ).scalar_one_or_none()
+    if run_id is None:
+        return False
+    claimed = await db.execute(
+        update(AgentRun).where(AgentRun.id == run_id, AgentRun.status.in_(allowed)).values(status=to)
+    )
+    await db.commit()
+    return claimed.rowcount == 1
 
 
 async def _extend_approval(db: AsyncSession, approval: Approval) -> str | None:

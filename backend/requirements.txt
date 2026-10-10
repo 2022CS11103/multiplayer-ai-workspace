@@ -1,5 +1,6 @@
 email-validator>=2.2.0
-fastapi>=0.115.0
+# Capped: FastAPI 0.12x+ nests included routers, which drops the /api prefix from route metric labels.
+fastapi>=0.115.0,<0.116
 uvicorn[standard]>=0.32.0
 sqlalchemy[asyncio]>=2.0.36
 aiosqlite>=0.21.0
