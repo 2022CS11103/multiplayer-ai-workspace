@@ -107,7 +107,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://localhost:8000/api/ready
-          curl -fsS -o /dev/null http://localhost:3000
+          curl -fsS -o /dev/null --retry 30 --retry-delay 2 --retry-all-errors http://localhost:3000
           curl -fsS -X POST http://localhost:8000/api/auth/login \
             -H 'content-type: application/json' \
             -d '{"email":"ananya@example.com","password":"forge-demo-2026"}' | grep -q token
