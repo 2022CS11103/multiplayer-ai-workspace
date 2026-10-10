@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +53,15 @@ class Settings(BaseSettings):
     db_auto_create: bool = True
     cors_origins: str = ""  # comma-separated, in addition to FRONTEND_URL
     metrics_token: str = ""  # when set, /metrics requires `Authorization: Bearer <token>`
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, value: str) -> str:
+        # Hosts such as Render and Heroku hand out postgres:// / postgresql:// URLs.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+asyncpg://" + value[len(prefix):]
+        return value
 
     @property
     def is_production(self) -> bool:

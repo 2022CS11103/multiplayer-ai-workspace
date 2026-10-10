@@ -50,6 +50,17 @@ Any 2 GB Linux box (Hetzner, DigitalOcean, Lightsail).
 
 Upgrades: `git pull && docker compose up -d --build`. The api runs migrations on start. In-flight agent runs are put back in the queue on shutdown and the worker resumes them from their last completed step.
 
+## Option R: Render blueprint (no server to manage)
+
+`render.yaml` defines the API, the web app and Postgres on Render's free plans.
+
+1. Render dashboard → **New → Blueprint** → connect GitHub and pick this repo and the branch to deploy.
+2. When asked, paste `GEMINI_API_KEY` (leave it empty for the mock agent). `NOTIFY_WEBHOOK_URL` is optional.
+3. **Apply**. The first build takes ~5-10 minutes. Then open `https://forge-2022cs11103-web.onrender.com`.
+4. If Render renamed a service because the name was taken, update `FRONTEND_URL` on the API and both `NEXT_PUBLIC_*` values on the web service to the real URLs, then redeploy the web service (those values are baked in at build time).
+
+Free plan limits and the upgrade path (worker + Redis) are at the top of `render.yaml`. Draft code is not executed on Render (`SANDBOX_MODE=mock`): the approval card shows the draft, but tests and reviewer checks come back as "skipped (SANDBOX_MODE=mock)".
+
 ## Option B: managed hosting
 
 - **Frontend:** Vercel (root `frontend`). Set `NEXT_PUBLIC_API_URL=https://api...` and `NEXT_PUBLIC_WS_URL=wss://api...`.

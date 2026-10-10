@@ -1,0 +1,74 @@
+# Render blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+#
+# Free plan layout: one API service runs agent runs in-process (AGENT_RUNNER=api), so no worker or
+# Redis is needed. Free services sleep after ~15 min idle (first request then takes ~1 min) and the
+# free database expires after 30 days. For always-on: set both services to `starter`, set
+# AGENT_RUNNER=worker, add a `keyvalue` (Redis) instance and a `worker` service running
+# `python -m app.worker` with the same env plus RUN_MIGRATIONS=false.
+#
+# The service names below become the public URLs. If Render reports a name as taken, rename both
+# services and update FRONTEND_URL and the two NEXT_PUBLIC_* values to match.
+
+services:
+  - type: web
+    name: forge-2022cs11103-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: forge-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://forge-2022cs11103-web.onrender.com
+      - key: AGENT_RUNNER
+        value: api
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: DB_AUTO_CREATE
+        value: "false"
+      - key: SEED_DEMO
+        value: "true"
+      # Containers have no Docker daemon; untrusted draft code must not run inside the API container.
+      - key: SANDBOX_MODE
+        value: mock
+      - key: LOG_FORMAT
+        value: json
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false
+
+  - type: web
+    name: forge-2022cs11103-web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      # Passed to `docker build` as build args and inlined into the browser bundle.
+      - key: NEXT_PUBLIC_API_URL
+        value: https://forge-2022cs11103-api.onrender.com
+      - key: NEXT_PUBLIC_WS_URL
+        value: wss://forge-2022cs11103-api.onrender.com
+
+databases:
+  - name: forge-db
+    plan: free
+    region: singapore
+    databaseName: maw
+    user: maw
+    ipAllowList: []
