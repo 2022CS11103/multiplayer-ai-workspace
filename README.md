@@ -6,16 +6,14 @@ This is not a shared ChatGPT. The agent uses tools, maintains a plan, waits for 
 
 ## V1 scope
 
-- Login / register
-- Create a workspace, invite or join a second user
-- Real-time chat, presence, and shared messages
-- Agent start / pause / resume / stop / redirect
-- Live activity feed + persistent agent state (late joiners see full context)
-- GitHub: connect repo, read issue, search/read code (live token or demo fixtures)
-- Human-in-the-loop approve / reject before file changes
-- Simulated test run + PR creation in demo mode
+One **research workspace** + two humans + one Research Agent. Prove:
 
-Out of scope for V1: CRDT editing, multi-agent orchestration, Slack/Jira, SSO, K8s.
+- **Live tracking** — event stream (planning, tool calls, sources, findings)
+- **Shared control** — pause / interrupt / new instruction, same run
+- **Handoff** — another teammate takes control without restarting
+- **Team memory** — decisions, sources, findings, report artifact, catch-up
+
+Coding rooms still work. Voice, extra agents, and paid search APIs are later.
 
 ## Architecture
 
@@ -29,6 +27,14 @@ Next.js UI  ──WebSocket / REST──►  FastAPI
                     GitHub tools · code tools · (Docker later)
 ```
 
+## One-command demo (Docker)
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000) and log in as `ananya@example.com` or `rahul@example.com` (password `forge-demo-2026`), or register and join with invite code `FORGEDEMO`. No AI key needed; add `XAI_API_KEY`, `GEMINI_API_KEY` or `OPENAI_API_KEY` to `.env` for a real model. Deploying publicly: see [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Run locally
 
 You need Python 3.11+ and Node 20+. Docker is optional (Postgres + Redis). Local V1 defaults to SQLite so it runs without Docker.
@@ -36,6 +42,10 @@ You need Python 3.11+ and Node 20+. Docker is optional (Postgres + Redis). Local
 ```bash
 copy .env.example .env   # Windows
 ```
+
+Optional demo room for local dev: `cd backend` then `python -m app.seed`.
+
+Checks: `cd backend; pytest -q` and, from the repo root, `python eval/run.py` (writes `eval/REPORT.md`).
 
 Backend:
 
@@ -55,12 +65,25 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Register two users in two browsers (or a normal + incognito window), create a workspace, join with the invite code, and start the agent.
+# ForgeAI — Multiplayer AI workspace
+
+A shared session where humans and an AI agent work on **one persistent task**. Not a group ChatGPT: the agent has a plan, emits events, can be interrupted, handed off, and remembered.
+
+Open [http://localhost:3000](http://localhost:3000). Register. Create **AI Agent Market Research**. Then:
+
+1. Ananya: `Research the top AI agent infrastructure startups.`
+2. Watch live plan: ✓ / → / ○
+3. Rahul joins (Invite → join code) and types: `Also investigate their pricing.`
+4. Ananya: `Stop. Only include companies founded after 2020.`
+5. Open **research/REPORT.md**. Catch me up reads team memory, not a private thread.
+6. Rahul clicks **Take control** — same run, same sources.
+
+If the API is down, rooms still work locally in that browser.
 
 Postgres later:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres redis
 ```
 
 Then set `DATABASE_URL=postgresql+asyncpg://maw:maw@localhost:5432/maw` in `.env`.

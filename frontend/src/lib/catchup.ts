@@ -3,6 +3,17 @@ import type { ActivityEvent, ActivityKind, Agent, AppState } from "./types";
 /** Events a returning human needs. Everything else stays in raw activity. */
 export const IMPORTANT_KINDS = new Set<ActivityKind>([
   "workspace_created",
+  "agent_started",
+  "agent_planning",
+  "agent_interrupted",
+  "agent_completed",
+  "instruction_added",
+  "handoff_completed",
+  "memory_created",
+  "source_found",
+  "finding_added",
+  "decision_added",
+  "task_created",
   "issue_read",
   "file_found",
   "root_cause_identified",
@@ -11,6 +22,10 @@ export const IMPORTANT_KINDS = new Set<ActivityKind>([
   "approval",
   "user_joined",
   "agent_redirected",
+  "approval_requested",
+  "approval_decided",
+  "steer_applied",
+  "step_completed",
 ]);
 
 export type WorkspaceSnapshot = {
@@ -43,7 +58,7 @@ export type CatchUpSummary = {
 };
 
 const CATCH_UP_QUERY =
-  /what happened|catch me up|catch-up|while i was away|while i've been away|summar(y|ise|ize)|what'?s the status|whats the status|bring me up to speed/i;
+  /what happened|catch me up|catch-up|while i was away|while i've been away|summar(y|ise|ize)|what'?s the status|whats the status|bring me up to speed|what'?s our target/i;
 
 export function isCatchUpQuery(text: string) {
   return CATCH_UP_QUERY.test(text.trim());
@@ -54,7 +69,7 @@ export function lastSeenAt(state: AppState, userId: string, workspaceId: string)
 }
 
 export function formatAgo(iso: string, now = Date.now()) {
-  const diff = Math.max(0, now - new Date(iso).getTime());
+  const diff = Math.max(0, now - Date.parse(iso));
   const minutes = Math.round(diff / 60_000);
   if (minutes < 60) return `${Math.max(1, minutes)} minute${minutes === 1 ? "" : "s"} ago`;
   const hours = Math.round(minutes / 60);
@@ -95,32 +110,29 @@ export function buildCatchUp(state: AppState, userId = state.currentUserId, work
   const important = events.filter((event) => IMPORTANT_KINDS.has(event.kind));
   const snapshot = buildWorkspaceSnapshot(state);
   const files = unique(
-    events.flatMap((event) => {
-      const file = event.metadata?.file;
-      return typeof file === "string" ? [file] : [];
-    })
+    [
+      ...events.flatMap((event) => {
+        const file = event.metadata?.file;
+        return typeof file === "string" ? [file] : [];
+      }),
+      ...state.files.filter((file) => file.path.startsWith("research/")).map((file) => file.path),
+    ]
   );
-  const proposed = [...events].reverse().find((event) => event.kind === "code_change_proposed");
-  const decision =
-    typeof proposed?.metadata?.change === "string"
-      ? proposed.metadata.change
-      : proposed
-        ? proposed.text
-        : state.approval.open
-          ? `${state.approval.before} → ${state.approval.after}`
-          : null;
+  const latestDecision = [...(state.decisions ?? [])].at(-1)?.text ?? null;
   const waitingApproval = snapshot.status === "WAITING_FOR_APPROVAL";
   const people = peopleFrom(state, important.length ? important : events);
   const sinceLabel = events[0] ? formatAgo(events[0].at) : "just now";
-  const completed = completedFrom(important, snapshot);
+  const completed = completedFrom(state, important, snapshot);
   const narrative = narrativeFrom({
     viewerName: viewer?.name ?? "there",
     completed,
-    decision,
+    decision: latestDecision,
     waitingApproval,
     people,
     files,
+    findings: state.findings ?? [],
     upToDate: important.length === 0,
+    research: state.workspaces.find((item) => item.id === workspaceId)?.kind === "research" || state.activeAgentId === "a-research",
   });
 
   return {
@@ -128,11 +140,11 @@ export function buildCatchUp(state: AppState, userId = state.currentUserId, work
     since,
     sinceLabel,
     narrative,
-    chatAnswer: chatAnswerFrom(narrative, snapshot, decision, waitingApproval),
+    chatAnswer: chatAnswerFrom(narrative, snapshot, latestDecision, waitingApproval, state),
     completed,
     current: snapshot.current,
     next: snapshot.next,
-    decision,
+    decision: latestDecision,
     people,
     waitingApproval,
     files,
@@ -147,7 +159,14 @@ function unique(values: string[]) {
   return [...new Set(values)];
 }
 
-function completedFrom(important: ActivityEvent[], snapshot: WorkspaceSnapshot) {
+function completedFrom(state: AppState, important: ActivityEvent[], snapshot: WorkspaceSnapshot) {
+  if (state.findings?.length) {
+    return [
+      `${state.sources?.length ?? 0} sources collected`,
+      `${state.findings.length} claims extracted`,
+      ...(state.files.some((file) => file.path === "research/REPORT.md") ? ["Research report written"] : []),
+    ];
+  }
   const bullets: string[] = [];
   if (important.some((event) => event.kind === "issue_read" || event.kind === "workspace_created")) {
     bullets.push("Issue analyzed");
@@ -175,9 +194,13 @@ function peopleFrom(state: AppState, events: ActivityEvent[]): CatchUpPerson[] {
 
 function blurbFor(kind: ActivityKind, name: string) {
   if (kind === "workspace_created") return `${name} — created the workspace`;
+  if (kind === "handoff_completed") return `${name} — took control of the agent`;
+  if (kind === "instruction_added") return `${name} — steered the run`;
+  if (kind === "agent_interrupted") return `${name} — interrupted the agent`;
+  if (kind === "user_joined") return `${name} — joined the room`;
+  if (kind === "agent_started" || kind === "agent_completed") return `${name} — ran the research`;
   if (kind === "issue_read") return `${name} — investigated the issue`;
   if (kind === "code_change_proposed" || kind === "approval") return `${name} — proposed the fix`;
-  if (kind === "user_joined") return `${name} — joined the room`;
   if (kind === "agent_redirected") return `${name} — redirected the agent`;
   return `${name} — worked in the room`;
 }
@@ -189,30 +212,43 @@ function narrativeFrom(input: {
   waitingApproval: boolean;
   people: CatchUpPerson[];
   files: string[];
+  findings: AppState["findings"];
   upToDate: boolean;
+  research: boolean;
 }) {
   if (input.upToDate) {
     return input.waitingApproval
-      ? `You're caught up. A code change is still waiting for approval${input.decision ? ` (${input.decision})` : ""}.`
+      ? `You're caught up. A change is still waiting for approval${input.decision ? ` (${input.decision})` : ""}.`
       : "You're caught up. Nothing important happened since you last looked.";
   }
-  const investigator =
-    input.people.find((person) => !/agent/i.test(person.name))?.name ?? input.people[0]?.name ?? "The team";
+  if (input.research) {
+    const who = input.people.filter((person) => !/agent/i.test(person.name)).map((person) => person.name);
+    const names = who.length ? who.join(" and ") : "The team";
+    const findings = input.findings.length ? ` ${input.findings.length} claims are in team memory.` : "";
+    const decision = input.decision ? ` Current constraint: ${input.decision}.` : "";
+    return `While you were away, ${names} steered the research agent.${findings}${decision} The session kept its plan, sources, and decisions — you do not need the private chat replay.`;
+  }
+  const investigator = input.people.find((person) => !/agent/i.test(person.name))?.name ?? input.people[0]?.name ?? "The team";
   const files = input.files.length ? ` after inspecting ${input.files.join(" and ")}` : "";
-  const cause = input.completed.some((item) => /root cause/i.test(item))
-    ? " The session timeout is inheriting a 30-second value."
-    : "";
-  const proposal = input.decision ? ` The Coding Agent proposed ${input.decision}.` : "";
+  const proposal = input.decision ? ` Important decision: ${input.decision}.` : "";
   const gate = input.waitingApproval ? " The change hasn't been approved yet." : "";
-  return `While you were away, ${investigator} investigated the login timeout issue${files}.${cause}${proposal}${gate}`.replace(/\s+/g, " ").trim();
+  return `While you were away, ${investigator} kept the workspace moving${files}.${proposal}${gate}`.replace(/\s+/g, " ").trim();
 }
 
-function chatAnswerFrom(narrative: string, snapshot: WorkspaceSnapshot, decision: string | null, waitingApproval: boolean) {
+function chatAnswerFrom(narrative: string, snapshot: WorkspaceSnapshot, decision: string | null, waitingApproval: boolean, state: AppState) {
   const next = snapshot.next.slice(0, 3).join(" → ");
+  const memory = [
+    state.decisions?.[0] ? `Decision: ${state.decisions[state.decisions.length - 1].text}.` : null,
+    state.sources?.length ? `Sources: ${state.sources.length}.` : null,
+    state.findings?.length ? `Findings: ${state.findings.length}.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return [
     narrative,
     waitingApproval ? "Status: waiting for approval." : `Status: ${snapshot.status.replaceAll("_", " ").toLowerCase()}.`,
     decision ? `Important decision: ${decision}.` : null,
+    memory || null,
     next ? `Next: ${next}.` : null,
   ]
     .filter(Boolean)

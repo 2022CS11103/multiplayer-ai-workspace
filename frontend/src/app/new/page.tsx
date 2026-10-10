@@ -21,39 +21,38 @@ export default function NewRoomPage() {
   return (
     <AuthGate>
       <ProductShell>
-        <main className="h-screen bg-[#1b2029] p-8">
-          <h1 className="text-[22px] font-medium">New Room</h1>
-          <p className="mt-1 max-w-xl text-[14px] text-[#c5cedb]">
-            A room is a shared task. People and agents join it, keep a plan, and leave artifacts — files, tests, PRs.
+        <main className="h-screen p-8">
+          <p className="chip">New room</p>
+          <h1 className="mt-4 text-[28px] font-semibold tracking-tight">Open a shared task</h1>
+          <p className="mt-1 max-w-xl text-[14px] text-[#a8b3c7]">
+            A room is a shared task. People and one research agent join it, keep a plan, and leave memory — sources, decisions, reports.
           </p>
-          <form onSubmit={onSubmit} className="mt-8 max-w-lg space-y-4">
+          <form onSubmit={onSubmit} className="mt-8 max-w-lg space-y-4 rounded-3xl border border-white/10 bg-[#10151e]/70 p-6">
             <div>
-              <label className="text-[13px] text-[#c5cedb]">Room name</label>
+              <label className="text-[13px] text-[#a8b3c7]">Room name</label>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Auth Bug #142"
-                className="mt-1 w-full rounded-md border border-[#343d4d] bg-[#232a35] px-3 py-3 outline-none"
+                placeholder="AI Agent Market Research"
+                className="field mt-1"
               />
             </div>
             <div>
-              <label className="text-[13px] text-[#c5cedb]">What should the agents work on?</label>
+              <label className="text-[13px] text-[#a8b3c7]">What should the agents work on?</label>
               <textarea
                 value={task}
                 onChange={(e) => setTask(e.target.value)}
                 rows={4}
-                placeholder="Fix login timeout — sessions expire after 30s."
-                className="mt-1 w-full rounded-md border border-[#343d4d] bg-[#232a35] px-3 py-3 outline-none"
+                placeholder="Research the top AI agent infrastructure startups."
+                className="field mt-1"
               />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="rounded-md bg-[#7dd3fc] px-4 py-2.5 text-[14px] font-medium text-[#0b1220]">
-                Open room
-              </button>
+              <button className="btn-primary px-4 py-2.5 text-[14px]">Open room</button>
               <button
                 type="button"
-                className="rounded-md border border-[#343d4d] px-4 py-2.5 text-[14px] text-[#f3f6fb]"
+                className="btn-ghost px-4 py-2.5 text-[14px]"
                 onClick={() => {
                   requestGithubPicker();
                   router.push("/workspace");

@@ -27,19 +27,19 @@ export default function MessageBubble({
   }
 
   return (
-    <div className={cn("group relative flex gap-2.5 rounded-md px-2 py-1 hover:bg-white/[0.03]", grouped && "mt-0")}>
-      <div className="w-6 shrink-0">
+    <div className={cn("group relative flex gap-3 rounded-2xl px-2 py-1.5 hover:bg-white/[0.03]", grouped && "mt-0")}>
+      <div className="w-7 shrink-0">
         {!grouped && <Avatar initials={author.initials} color={author.color} agent={author.agent} />}
       </div>
       <div className="min-w-0 flex-1">
         {!grouped && (
-          <div className="mb-0.5 flex items-baseline gap-2">
+          <div className="mb-1 flex items-baseline gap-2">
             <span className="text-[13px] font-medium text-white">{author.name}</span>
-            <span className={cn("text-[11px] uppercase tracking-wide", author.agent ? "text-[#7dd3fc]" : "text-[#c5cedb]")}>
+            <span className={cn("text-[10px] uppercase tracking-[0.14em]", author.agent ? "text-cyan-300" : "text-[#7d8aa0]")}>
               {author.agent ? "Agent" : "Human"}
             </span>
-            <span className="text-[12px] text-[#9aa6b8]">{formatTime(message.createdAt)}</span>
-            {message.editedAt ? <span className="text-[11px] text-[#9aa6b8]">edited</span> : null}
+            <span className="text-[12px] text-[#7d8aa0]">{formatTime(message.createdAt)}</span>
+            {message.editedAt ? <span className="text-[11px] text-[#7d8aa0]">edited</span> : null}
           </div>
         )}
         {editing ? (
@@ -47,13 +47,13 @@ export default function MessageBubble({
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              className="w-full rounded-md border border-[#343d4d] bg-[#12151c] px-2 py-2 text-[15px] text-[#f3f6fb] outline-none"
+              className="field"
               rows={4}
             />
             <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded bg-[#7dd3fc] px-2 py-1 text-[12px] text-[#0b1220]"
+                className="btn-primary"
                 onClick={() => {
                   if (!draft.trim()) return;
                   onEdit?.(draft.trim());
@@ -64,7 +64,7 @@ export default function MessageBubble({
               </button>
               <button
                 type="button"
-                className="text-[12px] text-[#c5cedb]"
+                className="text-[12px] text-[#a8b3c7]"
                 onClick={() => {
                   setDraft(message.content);
                   setEditing(false);
@@ -77,21 +77,22 @@ export default function MessageBubble({
         ) : (
           <div
             className={cn(
-              "text-[15px] leading-6 text-[#f3f6fb] whitespace-pre-wrap",
-              author.agent && "rounded-md border border-[#7dd3fc]/25 bg-[#123044] px-2.5 py-1.5"
+              "text-[15px] leading-7 text-[#eef2f8] whitespace-pre-wrap",
+              author.agent && "rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.06] px-3.5 py-2.5"
             )}
           >
             {renderContent(message.content)}
           </div>
         )}
       </div>
-      <div className="invisible flex gap-1 text-[12px] text-[#c5cedb] group-hover:visible">
-        <button type="button" onClick={() => void copy()}>
+      <div className="invisible flex gap-2 text-[12px] text-[#a8b3c7] group-hover:visible">
+        <button type="button" className="hover:text-white" onClick={() => void copy()}>
           Copy
         </button>
         {canEdit && !editing ? (
           <button
             type="button"
+            className="hover:text-white"
             onClick={() => {
               setDraft(message.content);
               setEditing(true);
@@ -112,7 +113,7 @@ function renderContent(content: string) {
       const newline = chunk.indexOf("\n");
       const code = newline === -1 ? chunk : chunk.slice(newline + 1);
       return (
-        <pre key={i} className="my-2 overflow-x-auto rounded-md border border-[#343d4d] bg-[#0f141c] p-3 font-mono text-[13px] leading-6">
+        <pre key={i} className="my-2 overflow-x-auto rounded-xl border border-white/10 bg-[#070b12] p-3 font-mono text-[13px] leading-6 text-[#dbe4f0]">
           {code.replace(/\n$/, "")}
         </pre>
       );
@@ -120,7 +121,7 @@ function renderContent(content: string) {
     const parts = chunk.split(/(@[A-Za-z ]+Agent|@[A-Za-z]+)/g);
     return parts.map((part, j) =>
       part.startsWith("@") ? (
-        <span key={`${i}-${j}`} className="rounded bg-indigo-400/15 px-1 text-indigo-300">
+        <span key={`${i}-${j}`} className="rounded-md bg-violet-400/15 px-1 text-violet-200">
           {part}
         </span>
       ) : (

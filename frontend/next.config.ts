@@ -5,6 +5,7 @@ const root = path.resolve(__dirname);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   outputFileTracingRoot: root,
   turbopack: {
     root,

@@ -10,11 +10,25 @@ export type AgentStatus =
 
 export type AgentType = "research" | "coding" | "testing" | "review";
 export type WorkspaceTab = "chat" | "code" | "activity" | "files" | "pull-request";
-export type PlanStepStatus = "completed" | "in_progress" | "pending";
+export type PlanStepStatus = "completed" | "in_progress" | "pending" | "failed" | "denied" | "skipped";
 export type FileChangeStatus = "unchanged" | "modified" | "added";
 export type ActivityKind =
   | "workspace_created"
   | "agent_started"
+  | "agent_planning"
+  | "agent_tool_call"
+  | "agent_tool_result"
+  | "agent_interrupted"
+  | "agent_paused"
+  | "agent_resumed"
+  | "agent_completed"
+  | "agent_failed"
+  | "instruction_added"
+  | "handoff_requested"
+  | "handoff_completed"
+  | "memory_created"
+  | "source_found"
+  | "finding_added"
   | "repo_connected"
   | "search"
   | "issue_read"
@@ -27,7 +41,55 @@ export type ActivityKind =
   | "agent_redirected"
   | "inspect"
   | "approval"
-  | "message";
+  | "message"
+  | "decision_added"
+  | "task_created"
+  | "task_completed"
+  | "user_interrupted"
+  | "approval_requested"
+  | "approval_decided"
+  | "tool_called"
+  | "tool_result"
+  | "plan_step_started"
+  | "step_completed"
+  | "file_snapshot"
+  | "crdt_updated"
+  | "steer_applied"
+  | "agent_stopped"
+  | "human_check"
+  | "member_role_changed";
+
+export type Source = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  url: string;
+  kind: "web" | "doc" | "note";
+};
+
+export type Finding = {
+  id: string;
+  workspaceId: string;
+  claim: string;
+  sourceId?: string;
+  verified: boolean;
+};
+
+export type Decision = {
+  id: string;
+  workspaceId: string;
+  text: string;
+  addedBy: string;
+  createdAt: string;
+};
+
+export type WorkspaceTask = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  status: "open" | "doing" | "done";
+  owner: string;
+};
 
 export type User = {
   id: string;
@@ -37,6 +99,7 @@ export type User = {
   title: string;
   initials: string;
   color: string;
+  viewing?: string | null;
 };
 
 export type Workspace = {
@@ -45,12 +108,14 @@ export type Workspace = {
   team: string;
   task: string;
   createdAt: string;
-  kind?: "demo" | "coding" | "github";
-  domain?: "dsa" | "app" | "frontend" | "ideas";
+  kind?: "demo" | "coding" | "github" | "research";
+  domain?: "dsa" | "app" | "frontend" | "ideas" | "research";
   testingEnabled?: boolean;
   githubRepo?: string;
   githubIssue?: number;
   githubUrl?: string;
+  inviteCode?: string;
+  live?: boolean;
 };
 
 export type Message = {
@@ -98,6 +163,34 @@ export type ApprovalRequest = {
   before: string;
   after: string;
   open: boolean;
+  backend?: boolean;
+  tool?: string;
+  risk?: string;
+  files?: DraftFile[];
+  verification?: DraftVerification | null;
+  expiresAt?: string;
+};
+
+export type DraftFile = { path: string; content: string };
+
+export type DraftVerification = {
+  status: "ok" | "failed" | "skipped" | "denied" | string;
+  exit_code?: number | null;
+  engine?: string | null;
+  command?: string | null;
+  output?: string;
+};
+
+export type ConnectionStatus = "idle" | "connecting" | "live" | "reconnecting" | "offline";
+
+export type ReplaySnapshot = {
+  id: string;
+  path: string;
+  stepId: string | null;
+  checkpointIndex: number | null;
+  actor: string;
+  content: string;
+  createdAt: string | null;
 };
 
 export type CodeFile = {
@@ -129,6 +222,12 @@ export type WorkspaceSlice = {
   activeAgentId: string;
   selectedFilePath: string;
   pullRequest: PullRequest;
+  decisions?: Decision[];
+  tasks?: WorkspaceTask[];
+  sources?: Source[];
+  findings?: Finding[];
+  instructions?: string[];
+  controllerUserId?: string;
 };
 
 export type AppState = {
@@ -156,4 +255,16 @@ export type AppState = {
   membershipDenied: boolean;
   lastSeen: Record<string, Record<string, string>>;
   slices: Record<string, WorkspaceSlice>;
+  decisions: Decision[];
+  tasks: WorkspaceTask[];
+  sources: Source[];
+  findings: Finding[];
+  instructions: string[];
+  contextOpen: boolean;
+  onlineUserIds: string[];
+  controllerUserId: string;
+  pendingResearchRun: string | null;
+  connectionStatus: ConnectionStatus;
+  lastSeq: number;
+  replay: ReplaySnapshot | null;
 };
