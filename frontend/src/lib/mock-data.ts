@@ -233,7 +233,7 @@ export function initialState(): AppState {
       review: "Pending",
     },
     sidebarOpen: true,
-    agentPanelOpen: true,
+    agentPanelOpen: false,
     planOpen: false,
     mentionOpen: false,
     catchUpOpen: false,
@@ -243,6 +243,30 @@ export function initialState(): AppState {
     membershipDenied: false,
     lastSeen: {},
     slices: {},
+    decisions: [
+      {
+        id: "d1",
+        workspaceId: "ws-auth",
+        text: "Session timeout must be at least 30 minutes — 30s is a bug, not a product choice.",
+        addedBy: "u-owner",
+        createdAt: "2026-08-20T10:45:00",
+      },
+    ],
+    tasks: [
+      { id: "tk1", workspaceId: "ws-auth", title: "Raise SESSION_TIMEOUT to 1800", status: "doing", owner: "a-coding" },
+      { id: "tk2", workspaceId: "ws-auth", title: "Wait for human approval on session.py", status: "open", owner: "a-coding" },
+      { id: "tk3", workspaceId: "ws-auth", title: "Re-run auth tests", status: "open", owner: "a-testing" },
+    ],
+    contextOpen: true,
+    onlineUserIds: [],
+    sources: [],
+    findings: [],
+    instructions: [],
+    controllerUserId: "u-owner",
+    pendingResearchRun: null,
+    connectionStatus: "idle",
+    lastSeq: 0,
+    replay: null,
   };
 }
 
@@ -259,7 +283,25 @@ export function demoApproval() {
   };
 }
 
-export function captureSlice(state: Pick<AppState, "messages" | "files" | "activity" | "approval" | "agents" | "activeAgentId" | "selectedFilePath" | "pullRequest">): WorkspaceSlice {
+export function captureSlice(
+  state: Pick<
+    AppState,
+    | "messages"
+    | "files"
+    | "activity"
+    | "approval"
+    | "agents"
+    | "activeAgentId"
+    | "selectedFilePath"
+    | "pullRequest"
+    | "decisions"
+    | "tasks"
+    | "sources"
+    | "findings"
+    | "instructions"
+    | "controllerUserId"
+  >
+): WorkspaceSlice {
   return {
     messages: state.messages,
     files: state.files,
@@ -269,6 +311,12 @@ export function captureSlice(state: Pick<AppState, "messages" | "files" | "activ
     activeAgentId: state.activeAgentId,
     selectedFilePath: state.selectedFilePath,
     pullRequest: state.pullRequest,
+    decisions: state.decisions,
+    tasks: state.tasks,
+    sources: state.sources,
+    findings: state.findings,
+    instructions: state.instructions,
+    controllerUserId: state.controllerUserId,
   };
 }
 
@@ -283,6 +331,12 @@ export function applySlice(state: AppState, slice: WorkspaceSlice): AppState {
     activeAgentId: slice.activeAgentId,
     selectedFilePath: slice.selectedFilePath,
     pullRequest: slice.pullRequest,
+    decisions: slice.decisions ?? [],
+    tasks: slice.tasks ?? [],
+    sources: slice.sources ?? state.sources ?? [],
+    findings: slice.findings ?? state.findings ?? [],
+    instructions: slice.instructions ?? state.instructions ?? [],
+    controllerUserId: slice.controllerUserId ?? state.controllerUserId,
   };
 }
 
@@ -305,6 +359,19 @@ export function demoSlice(): WorkspaceSlice {
       testsPassed: 42,
       review: "Pending",
     },
+    decisions: [
+      {
+        id: "d1",
+        workspaceId: "ws-auth",
+        text: "Session timeout must be at least 30 minutes.",
+        addedBy: "u-owner",
+        createdAt: "2026-08-20T10:45:00",
+      },
+    ],
+    tasks: [
+      { id: "tk1", workspaceId: "ws-auth", title: "Raise SESSION_TIMEOUT to 1800", status: "doing", owner: "a-coding" },
+      { id: "tk2", workspaceId: "ws-auth", title: "Wait for human approval", status: "open", owner: "a-coding" },
+    ],
   };
 }
 
@@ -427,6 +494,12 @@ export function blankGithubSlice(
       testsPassed: 0,
       review: "—",
     },
+    decisions: [],
+    tasks: [],
+    sources: [],
+    findings: [],
+    instructions: [],
+    controllerUserId: ownerId,
   };
 }
 
@@ -439,7 +512,7 @@ export function blankCodingSlice(workspaceId: string, ownerId: string, task: str
         workspaceId,
         authorId: "a-coding",
         content:
-          "New project room.\n\nTell me what to build — a calculator, frontend, a DSA problem, or ask for ideas — and I’ll put files in the Code tab.",
+          "Shared session is live.\n\nThis room is the source of truth — chat, files, decisions, and tasks stay together. Tell me what to investigate or build. Anyone who joins sees the same state.",
         createdAt: now,
       },
     ],
@@ -451,9 +524,15 @@ export function blankCodingSlice(workspaceId: string, ownerId: string, task: str
         at: now,
         actorId: ownerId,
         kind: "workspace_created",
-        text: "Created coding workspace",
+        text: "Created shared workspace",
       },
     ],
+    decisions: [],
+    tasks: [],
+    sources: [],
+    findings: [],
+    instructions: [],
+    controllerUserId: ownerId,
     approval: {
       id: nid("ap"),
       workspaceId,

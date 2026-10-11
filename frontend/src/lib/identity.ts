@@ -21,7 +21,7 @@ export type LocalAccount = SessionUser & { password: string };
 
 export type InviteSnapshot = {
   workspace: Pick<Workspace, "id" | "name" | "task" | "createdAt"> &
-    Partial<Pick<Workspace, "kind" | "domain" | "team">>;
+    Partial<Pick<Workspace, "kind" | "domain" | "team" | "inviteCode" | "live">>;
   files: { path: string; language: string; content: string }[];
 };
 
@@ -34,6 +34,7 @@ export type WorkspaceInvite = {
   invitedByName: string;
   createdAt: string;
   acceptedAt?: string;
+  inviteCode?: string;
   snapshot?: InviteSnapshot;
 };
 
@@ -102,6 +103,7 @@ function packInviteToken(invite: Omit<WorkspaceInvite, "token">) {
       invitedById: invite.invitedById,
       invitedByName: invite.invitedByName,
       createdAt: invite.createdAt,
+      inviteCode: invite.inviteCode,
       snapshot: invite.snapshot,
     })
   )}`;
@@ -120,6 +122,7 @@ function unpackInviteToken(token: string): WorkspaceInvite | null {
       invitedById: body.invitedById || "unknown",
       invitedByName: body.invitedByName || "A teammate",
       createdAt: body.createdAt || new Date().toISOString(),
+      inviteCode: body.inviteCode,
       snapshot: body.snapshot,
     };
   } catch {
@@ -145,6 +148,8 @@ export function importInvitedProject(invite: WorkspaceInvite) {
         createdAt: meta?.createdAt ?? invite.createdAt,
         kind: meta?.kind ?? "coding",
         domain: meta?.domain ?? "app",
+        inviteCode: invite.inviteCode ?? meta?.inviteCode,
+        live: Boolean(invite.inviteCode || meta?.live),
       },
       ...list,
     ]);
@@ -283,6 +288,10 @@ export function findInviteForEmail(email: string) {
   return listInvites().find((invite) => invite.email === normalized && !invite.acceptedAt) ?? null;
 }
 
+export function inviteJoinCode(invite: WorkspaceInvite) {
+  return (invite.inviteCode || invite.snapshot?.workspace.inviteCode || "").trim();
+}
+
 export function createInvite(input: {
   workspaceId: string;
   workspaceName: string;
@@ -291,6 +300,7 @@ export function createInvite(input: {
   invitedByName: string;
   invitedByEmail: string;
   memberEmails: string[];
+  inviteCode?: string;
   snapshot?: InviteSnapshot;
 }): WorkspaceInvite {
   const email = normalizeEmail(input.email);
@@ -309,6 +319,7 @@ export function createInvite(input: {
     invitedById: input.invitedById,
     invitedByName: input.invitedByName,
     createdAt: new Date().toISOString(),
+    inviteCode: input.inviteCode,
     snapshot: compactSnapshot(input.snapshot),
   };
   const invite = { ...draft, token: packInviteToken(draft) };
@@ -344,14 +355,14 @@ export function addMember(workspaceId: string, user: SessionUser): { member: Use
   return { member: next, created: true };
 }
 
-export function acceptWorkspaceInvite(token: string, user: SessionUser) {
+export function acceptWorkspaceInvite(token: string, user: SessionUser, opts?: { skipProjectImport?: boolean }) {
   const invite = getInvite(token);
   if (!invite) throw new Error("Invite link is invalid or expired.");
   if (normalizeEmail(user.email) !== invite.email) {
     throw new Error(`This invite is for ${invite.email}. Use that email.`);
   }
   rememberInvite(invite);
-  importInvitedProject(invite);
+  if (!opts?.skipProjectImport) importInvitedProject(invite);
   const { member, created } = addMember(invite.workspaceId, user);
   if (!invite.acceptedAt) markInviteAccepted(invite.token);
   if (created && typeof sessionStorage !== "undefined") {

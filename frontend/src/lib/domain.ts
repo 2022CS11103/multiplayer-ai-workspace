@@ -1,4 +1,4 @@
-export type ProjectDomain = "dsa" | "app" | "frontend" | "ideas";
+export type ProjectDomain = "dsa" | "app" | "frontend" | "ideas" | "research";
 export type IdeaLevel = "starter" | "expert";
 
 const DSA =
@@ -53,6 +53,7 @@ export function domainLabel(domain: ProjectDomain) {
   if (domain === "dsa") return "DSA";
   if (domain === "frontend") return "Frontend";
   if (domain === "ideas") return "Ideas";
+  if (domain === "research") return "Research";
   return "App";
 }
 

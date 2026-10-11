@@ -10,7 +10,8 @@ export default function CatchUpPanel() {
   const snapshot = useMemo(() => buildWorkspaceSnapshot(state), [state]);
 
   function viewChanges() {
-    dispatch({ type: "SELECT_FILE", path: "src/session.py" });
+    const report = state.files.find((file) => file.path === "research/REPORT.md");
+    dispatch({ type: "SELECT_FILE", path: report?.path ?? state.selectedFilePath ?? "src/session.py" });
     dispatch({ type: "DISMISS_CATCHUP" });
   }
 
@@ -50,7 +51,7 @@ export default function CatchUpPanel() {
 
         {summary.decision && (
           <div className="mt-4 rounded-lg border border-[#343d4d] bg-[#232a35] px-4 py-3">
-            <p className="text-[12px] uppercase tracking-[0.12em] text-[#7dd3fc]">🤖 Coding Agent</p>
+            <p className="text-[12px] uppercase tracking-[0.12em] text-[#7dd3fc]">🤖 Research / coding memory</p>
             <p className="mt-1 text-[14px]">Proposed {summary.decision}</p>
           </div>
         )}
@@ -91,7 +92,7 @@ export default function CatchUpPanel() {
 
         <div className="mt-5 flex flex-wrap gap-2">
           <button className="rounded-md bg-[#7dd3fc] px-3 py-2 text-[13px] font-medium text-[#0b1220]" onClick={viewChanges}>
-            View changes
+            Open artifact
           </button>
           <button className="rounded-md border border-[#343d4d] bg-[#232a35] px-3 py-2 text-[13px]" onClick={viewActivity}>
             View activity

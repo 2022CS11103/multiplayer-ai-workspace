@@ -1,9 +1,31 @@
+# Full stack:      docker compose up --build        -> http://localhost:3000
+# Only Postgres + Redis for local dev:  docker compose up -d postgres redis
+#
+# Works with no AI key (mock agent). Put XAI_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY in .env for a real model.
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://maw:${POSTGRES_PASSWORD:-maw}@postgres:5432/maw
+  REDIS_URL: redis://redis:6379/0
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-to-a-long-random-secret}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  AGENT_RUNNER: worker
+  DB_AUTO_CREATE: "false"
+  SANDBOX_MODE: mock
+  LOG_FORMAT: json
+  LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  XAI_API_KEY: ${XAI_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: maw
-      POSTGRES_PASSWORD: maw
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maw}
       POSTGRES_DB: maw
     ports:
       - "5432:5432"
@@ -24,6 +46,44 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "true"
+      SEED_DEMO: ${SEED_DEMO:-true}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

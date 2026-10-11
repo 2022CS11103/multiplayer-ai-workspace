@@ -1,4 +1,18 @@
 import { detectDomain, isFrontendRequest } from "./domain";
+import {
+  classifyIntent,
+  forbidsModification,
+  isInspectRequest,
+  isReadDecisionRequest,
+  isReadFindingRequest,
+  isSaveDecisionRequest,
+  isSaveFindingRequest,
+  refusesTesting,
+  withoutNegatedClauses,
+} from "./intent";
+import type { CodeFile, PlanStep } from "./types";
+
+export { isInspectRequest } from "./intent";
 
 export type CodingWork = {
   title: string;
@@ -41,17 +55,131 @@ export function isNewProject(text: string) {
   return NEW_PROJECT.test(text);
 }
 
+
+export function isWriteCodeRequest(text: string) {
+  return classifyIntent(text).kind === "write_code";
+}
+
 export function isCodeRequest(text: string) {
-  return CODE_REQUEST.test(text) || /\d\s*sum/i.test(text) || isNewProject(text);
+  if (forbidsModification(text) || classifyIntent(text).kind === "literal") return false;
+  const rest = withoutNegatedClauses(text);
+  return CODE_REQUEST.test(rest) || /\d\s*sum/i.test(rest) || isNewProject(text);
 }
 
 export function isProjectFollowUp(text: string) {
-  return PROJECT_TWEAK.test(text) && !isNewProject(text);
+  return PROJECT_TWEAK.test(withoutNegatedClauses(text)) && !isNewProject(text);
 }
 
 export function isCodingFollowUp(text: string) {
-  if (isNewProject(text)) return false;
-  return FOLLOW_UP.test(text.trim()) || isProjectFollowUp(text) || isCodeRequest(text);
+  const intent = classifyIntent(text);
+  if (intent.kind !== "write_code" && intent.kind !== "none") return false;
+  if (forbidsModification(text) || isNewProject(text)) return false;
+  if (isInspectRequest(text) || isSaveDecisionRequest(text) || isReadDecisionRequest(text) || isSaveFindingRequest(text) || isReadFindingRequest(text)) return false;
+  if (/^\s*(?:@)?testing agent\b/i.test(text) || /\b@testing agent\b/i.test(text)) return false;
+  const rest = withoutNegatedClauses(text);
+  return FOLLOW_UP.test(rest) || isProjectFollowUp(text) || isWriteCodeRequest(text);
+}
+
+function pickInspectFile(files: CodeFile[], prompt: string) {
+  const codeFiles = files.filter((file) => !file.path.startsWith("tests/"));
+  const mentioned = prompt.match(/([\w./-]+\.(?:py|js|ts|tsx|jsx|java|go|cpp))/i)?.[1];
+  if (mentioned) {
+    const needle = mentioned.replace(/\\/g, "/").toLowerCase();
+    const hit = codeFiles.find((file) => {
+      const path = file.path.replace(/\\/g, "/").toLowerCase();
+      return path === needle || path.endsWith(`/${needle}`) || path.endsWith(needle);
+    });
+    if (hit) return hit;
+  }
+  return codeFiles.find((file) => /calculator/.test(file.path)) ?? codeFiles[0];
+}
+
+function functionNames(content: string) {
+  const py = [...content.matchAll(/^\s*def ([a-zA-Z_]\w*)\s*\(/gm)].map((match) => match[1]);
+  const js = [...content.matchAll(/^\s*function ([a-zA-Z_]\w*)\s*\(/gm)].map((match) => match[1]);
+  return [...new Set([...py, ...js].filter((name) => name !== "eval_node"))];
+}
+
+function extractFunction(content: string, name: string) {
+  const start = content.search(new RegExp(String.raw`^(?:def|function) ${name}\s*\(`, "m"));
+  if (start < 0) return "";
+  const rest = content.slice(start);
+  const next = rest.slice(1).search(/^(?:def|function) /m);
+  return (next < 0 ? rest : rest.slice(0, next + 1)).trim();
+}
+
+export function summarizeExistingCode(files: CodeFile[], prompt: string): { title: string; reply: string; plan: PlanStep[] } {
+  const main = pickInspectFile(files, prompt);
+  if (!main) {
+    return {
+      title: "Inspect",
+      reply: "No source files in this room yet. I did not create or modify anything.",
+      plan: [{ id: "k1", title: "Inspect current files", status: "completed" }],
+    };
+  }
+  const names = functionNames(main.content);
+  const namesOnly = /\bnames of all functions|identify the functions|list (?:the )?functions|return the names\b/i.test(prompt);
+  const focus = prompt.match(/\b(hcf|gcd|lcm|add|subtract|multiply|divide|modulo|calculate)\s*\(\)/i)?.[1]?.toLowerCase();
+  const noTests = refusesTesting(prompt) || /\bdo not (?:modify|test)\b/i.test(prompt);
+
+  if (namesOnly) {
+    return {
+      title: `Inspect ${main.path}`,
+      reply: `Functions in ${main.path}: ${names.length ? names.join(", ") : "(none found)"}.
+
+I only inspected this file. I did not modify anything, did not run tests, and did not write to Shared Context.`,
+      plan: [
+        { id: "k1", title: `Open ${main.path}`, status: "completed" },
+        { id: "k2", title: "List function names", status: "completed" },
+        { id: "k3", title: "Leave source unchanged", status: "completed" },
+      ],
+    };
+  }
+
+  if (focus) {
+    const body = extractFunction(main.content, focus);
+    const notes: string[] = [];
+    if (/abs\(\s*int\(/.test(body) || /int\(/.test(body)) {
+      notes.push(`${focus}() uses int(), which silently truncates non-integer inputs (e.g. 3.9 → 3).`);
+    }
+    if (/abs\(/.test(body)) notes.push(`${focus}() takes abs(), so sign is discarded.`);
+    return {
+      title: `Inspect ${focus}() in ${main.path}`,
+      reply: `Inspected only ${focus}() in ${main.path}. I did not modify files${noTests ? " and I did not execute any tests" : ""}.
+
+${body ? `Current implementation:\n\`\`\`python\n${body}\n\`\`\`` : `${focus}() is referenced but I could not extract a definition.`}
+${notes.length ? `\nPotential issue:\n${notes.map((item) => `• ${item}`).join("\n")}` : ""}`,
+      plan: [
+        { id: "k1", title: `Inspect ${focus}()`, status: "completed" },
+        { id: "k2", title: "Do not execute tests", status: noTests ? "completed" : "pending" },
+        { id: "k3", title: "Leave source unchanged", status: "completed" },
+      ],
+    };
+  }
+
+  const watches: string[] = [];
+  if (/if b == 0/.test(main.content)) watches.push("divide / modulo by zero raise ValueError.");
+  if (/abs\(int\(/.test(main.content)) watches.push("hcf/gcd coerce with abs(int(...)), so negatives become positive and non-integers are truncated.");
+  if (/if a == 0 or b == 0/.test(main.content)) watches.push("lcm returns 0 if either argument is 0.");
+  if (/ast\.parse/.test(main.content)) {
+    watches.push("calculate() uses ast.parse — empty or malformed strings raise SyntaxError; `**` is not in the operator map.");
+  }
+  const edge =
+    /edge/.test(prompt.toLowerCase()) && !noTests
+      ? "\n\nPotential edge cases worth executing next: divide(5,0), modulo(5,0), hcf(-12,18), hcf(0,5), lcm(-4,6), calculate(\"\"), calculate(\"2 +\"), calculate(\"2 ** 3\"), calculate(\"-5 + 2\"), nested parentheses."
+      : "";
+  return {
+    title: `Inspect ${main.path}`,
+    reply: `${main.path} currently defines ${names.length ? names.join(", ") : "the saved source"}.
+
+I inspected the files. I did not modify anything and I am not dumping the source here — open the **Code** tab for the full file.
+${watches.length ? `\nThings to watch:\n${watches.map((item) => `• ${item}`).join("\n")}` : ""}${edge}`,
+    plan: [
+      { id: "k1", title: "Inspect current files", status: "completed" },
+      { id: "k2", title: "Summarize without rewriting", status: "completed" },
+      { id: "k3", title: "Leave source unchanged", status: "completed" },
+    ],
+  };
 }
 
 export function shouldStartNewRoom(prompt: string, ctx: CodingContext, files: { path?: string }[] = []) {
