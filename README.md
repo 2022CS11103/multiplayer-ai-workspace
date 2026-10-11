@@ -8,17 +8,17 @@ This is not a shared ChatGPT. The agent uses tools, maintains a plan, waits for 
 
 One **research workspace** + two humans + one Research Agent. Prove:
 
-- **Live tracking** — event stream (planning, tool calls, sources, findings)
-- **Shared control** — pause / interrupt / new instruction, same run
-- **Handoff** — another teammate takes control without restarting
-- **Team memory** — decisions, sources, findings, report artifact, catch-up
+- **Live tracking** - event stream (planning, tool calls, sources, findings)
+- **Shared control** - pause / interrupt / new instruction, same run
+- **Handoff** - another teammate takes control without restarting
+- **Team memory** - decisions, sources, findings, report artifact, catch-up
 
 Coding rooms still work. Voice, extra agents, and paid search APIs are later.
 
 ## Architecture
 
 ```
-Next.js UI  ──WebSocket / REST──►  FastAPI
+Next.js UI  --WebSocket / REST──►  FastAPI
                                       │
                          PostgreSQL   Redis   Agent runner
                                       │
@@ -65,7 +65,7 @@ npm install
 npm run dev
 ```
 
-# ForgeAI — Multiplayer AI workspace
+# ForgeAI - Multiplayer AI workspace
 
 A shared session where humans and an AI agent work on **one persistent task**. Not a group ChatGPT: the agent has a plan, emits events, can be interrupted, handed off, and remembered.
 
