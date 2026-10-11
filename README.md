@@ -76,7 +76,7 @@ Open [http://localhost:3000](http://localhost:3000). Register. Create **AI Agent
 3. Rahul joins (Invite → join code) and types: `Also investigate their pricing.`
 4. Ananya: `Stop. Only include companies founded after 2020.`
 5. Open **research/REPORT.md**. Catch me up reads team memory, not a private thread.
-6. Rahul clicks **Take control** — same run, same sources.
+6. Rahul clicks **Take control** - same run, same sources.
 
 If the API is down, rooms still work locally in that browser.
 
